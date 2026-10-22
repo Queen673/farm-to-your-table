@@ -1,0 +1,342 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  BUYER
+  FARMER
+  DRIVER
+  ADMIN
+}
+
+enum ProductStatus {
+  ACTIVE
+  ARCHIVED
+  SUSPENDED
+}
+
+enum ListingStatus {
+  OPEN
+  CLOSED
+  HARVEST_DUE
+  HARVEST_READY
+  COMPLETED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  SUCCESSFUL
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum SubscriptionStatus {
+  INACTIVE
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  PENDING_ASSIGNMENT
+  ASSIGNED
+  ACCEPTED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum LedgerType {
+  PAYMENT
+  COMMISSION
+  SUBSCRIPTION
+  REFUND
+  FARMER_PAYABLE
+  DRIVER_PAYABLE
+  ADJUSTMENT
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  phone         String?
+  passwordHash  String
+  role          Role
+  region        String?
+  division      String?
+  locality      String?
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  farmerProfile FarmerProfile?
+  driverProfile DriverProfile?
+  buyerProfile  BuyerProfile?
+  products      Product[]
+  buyerOrders   Order[]        @relation("BuyerOrders")
+  subscriptions Subscription[]
+  reviews       Review[]
+}
+
+model FarmerProfile {
+  id           String  @id @default(cuid())
+  userId       String  @unique
+  farmName     String?
+  farmLocation String?
+  activities   String?
+  description  String?
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DriverProfile {
+  id                  String     @id @default(cuid())
+  userId              String     @unique
+  businessName        String?
+  vehicleType         String?
+  vehicleRegistration String?
+  cargoCapacityKg     Float?
+  routes              String?
+  available           Boolean    @default(true)
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries          Delivery[]
+}
+
+model BuyerProfile {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  deliveryAddress String?
+  preferredHubId  String?
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AgriculturalHub {
+  id        String    @id @default(cuid())
+  name      String
+  region    String
+  division  String?
+  locality  String?
+  active    Boolean   @default(true)
+  products  Product[]
+  createdAt DateTime  @default(now())
+}
+
+model ProductCategory {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  active   Boolean   @default(true)
+  products Product[]
+}
+
+model Product {
+  id           String           @id @default(cuid())
+  farmerId     String
+  categoryId   String?
+  hubId        String?
+  name         String
+  description  String?
+  imageUrl     String?
+  unit         String           @default("kg")
+  priceXaf     Decimal          @db.Decimal(14, 0)
+  currentStock Int              @default(0)
+  status       ProductStatus    @default(ACTIVE)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  farmer       User             @relation(fields: [farmerId], references: [id])
+  category     ProductCategory? @relation(fields: [categoryId], references: [id])
+  hub          AgriculturalHub? @relation(fields: [hubId], references: [id])
+  preorder     PreorderListing?
+  orderItems   OrderItem[]
+
+  @@index([farmerId, status])
+  @@index([name])
+}
+
+model PreorderListing {
+  id                String                @id @default(cuid())
+  productId         String                @unique
+  expectedHarvestAt DateTime
+  opensAt           DateTime
+  closesAt          DateTime
+  expectedQuantity  Int
+  preorderQuantity  Int
+  reservedQuantity  Int                   @default(0)
+  depositPercent    Int                   @default(20)
+  status            ListingStatus         @default(OPEN)
+  product           Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  reservations      PreorderReservation[]
+  createdAt         DateTime              @default(now())
+}
+
+model Order {
+  id             String               @id @default(cuid())
+  reference      String               @unique
+  buyerId        String
+  status         OrderStatus          @default(PENDING)
+  subtotalXaf    Decimal              @db.Decimal(14, 0)
+  depositXaf     Decimal              @default(0) @db.Decimal(14, 0)
+  deliveryFeeXaf Decimal              @default(0) @db.Decimal(14, 0)
+  totalXaf       Decimal              @db.Decimal(14, 0)
+  commissionXaf  Decimal              @default(0) @db.Decimal(14, 0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  buyer          User                 @relation("BuyerOrders", fields: [buyerId], references: [id])
+  items          OrderItem[]
+  payments       Payment[]
+  reservation    PreorderReservation?
+  delivery       Delivery?
+
+  @@index([buyerId, createdAt])
+}
+
+model OrderItem {
+  id           String  @id @default(cuid())
+  orderId      String
+  productId    String
+  quantity     Int
+  unitPriceXaf Decimal @db.Decimal(14, 0)
+  lineTotalXaf Decimal @db.Decimal(14, 0)
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product @relation(fields: [productId], references: [id])
+}
+
+model PreorderReservation {
+  id         String          @id @default(cuid())
+  listingId  String
+  orderId    String          @unique
+  quantity   Int
+  depositXaf Decimal         @db.Decimal(14, 0)
+  listing    PreorderListing @relation(fields: [listingId], references: [id])
+  order      Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  orderId           String?
+  userId            String
+  provider          String        @default("FAPSHI")
+  carrier           String?
+  phone             String?
+  amountXaf         Decimal       @db.Decimal(14, 0)
+  status            PaymentStatus @default(CREATED)
+  providerReference String?       @unique
+  idempotencyKey    String        @unique
+  rawStatus         String?
+  verifiedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  order             Order?        @relation(fields: [orderId], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model SubscriptionPlan {
+  id            String         @id @default(cuid())
+  role          Role
+  name          String
+  priceXaf      Decimal        @db.Decimal(14, 0)
+  durationDays  Int            @default(30)
+  active        Boolean        @default(true)
+  subscriptions Subscription[]
+
+  @@unique([role, name])
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  userId           String
+  planId           String
+  status           SubscriptionStatus @default(INACTIVE)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  paymentReference String?
+  user             User               @relation(fields: [userId], references: [id])
+  plan             SubscriptionPlan   @relation(fields: [planId], references: [id])
+  createdAt        DateTime           @default(now())
+
+  @@index([userId, status])
+}
+
+model Delivery {
+  id             String         @id @default(cuid())
+  orderId        String         @unique
+  driverId       String?
+  pickupLocation String?
+  destination    String?
+  status         DeliveryStatus @default(PENDING_ASSIGNMENT)
+  feeXaf         Decimal        @default(0) @db.Decimal(14, 0)
+  notes          String?
+  assignedAt     DateTime?
+  deliveredAt    DateTime?
+  order          Order          @relation(fields: [orderId], references: [id])
+  driver         DriverProfile? @relation(fields: [driverId], references: [id])
+  createdAt      DateTime       @default(now())
+}
+
+model TransportRoute {
+  id         String   @id @default(cuid())
+  driverId   String
+  fromRegion String
+  toRegion   String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  authorId     String
+  targetUserId String
+  rating       Int
+  comment      String?
+  createdAt    DateTime @default(now())
+  author       User     @relation(fields: [authorId], references: [id])
+}
+
+model CommissionRule {
+  id        String   @id @default(cuid())
+  name      String
+  percent   Int      @default(5)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model LedgerEntry {
+  id             String     @id @default(cuid())
+  type           LedgerType
+  userId         String?
+  orderId        String?
+  paymentId      String?
+  amountXaf      Decimal    @db.Decimal(14, 0)
+  status         String     @default("PENDING")
+  memo           String?
+  idempotencyKey String     @unique
+  createdAt      DateTime   @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  details    Json?
+  createdAt  DateTime @default(now())
+}
