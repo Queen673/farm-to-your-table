@@ -1,11 +1,11 @@
-# Farm to Your Table (FTYT)
+Farm to Your Table (FTYT)
 
 FTYT is a green‑themed, Cameroon‑focused agricultural marketplace prototype connecting buyers, farmers, and delivery drivers.  
 It uses **Express, MySQL, Prisma**, and a responsive **vanilla‑JS frontend**, making it easy to run and inspect during a hackathon.
 
 ---
 
-## 🚀 Features Implemented
+Features Implemented
 - Public landing page and responsive marketplace
 - Registration & login for **buyer, farmer, driver** roles (admin cannot self‑register)
 - Password hashing, JWT authentication, protected API routes & role checks
@@ -19,7 +19,7 @@ It uses **Express, MySQL, Prisma**, and a responsive **vanilla‑JS frontend**, 
 
 ---
 
-## ⚠️ Prototype Limitations
+Prototype Limitations
 1. `/api/payments/mock` is **test‑only**; no live MTN/Orange/Fapshi integration.  
 2. Real payment flow requires Fapshi credentials & API docs.  
 3. Subscription purchase/renewal not fully implemented.  
@@ -29,7 +29,7 @@ It uses **Express, MySQL, Prisma**, and a responsive **vanilla‑JS frontend**, 
 
 ---
 
-## 🛠 Requirements
+ Requirements
 - Node.js 20+
 - MySQL database (XAMPP suitable for local dev)
 - npm
